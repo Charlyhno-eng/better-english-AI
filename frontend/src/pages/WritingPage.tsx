@@ -1,5 +1,5 @@
+import { AppHeader } from '../components/AppHeader';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link } from 'react-router';
 import { LanguageCorrections } from '../features/conversation/LanguageCorrections';
 import type { Corrections } from '../features/conversation/feedback';
 import { correctWriting } from '../features/writing/api';
@@ -35,8 +35,7 @@ export function WritingPage() {
     }
   }
   return <main className="conversation-app">
-    <header className="app-header"><Link className="wordmark" to="/">Better English <span>AI</span></Link>
-      <Link to="/">Conversation</Link></header>
+    <AppHeader />
     <section className="conversation-heading"><p className="eyebrow">Writing practice</p>
       <h1>Find the words you need.</h1><p>Write in English and get clear corrections with short explanations.</p></section>
     <form className="writing-form" onSubmit={(event) => void submit(event)}>

@@ -1,3 +1,4 @@
+import { AppHeader } from '../components/AppHeader';
 import { useVoiceInput } from '../features/conversation/useVoiceInput';
 import { Link } from 'react-router';
 import { useEffect, useRef, useState } from 'react';
@@ -39,15 +40,7 @@ export function HomePage() {
 
   return (
     <main className="conversation-app">
-      <header className="app-header">
-        <a className="wordmark" href="/">Better English <span>AI</span></a>
-        <Link to="/setup">Setup</Link>
-        <Link to="/writing">Writing practice</Link>
-        <Link to="/pronunciation">Pronunciation practice</Link>
-        <button className="secondary-button" onClick={reset} disabled={!turns.length && phase === 'idle' && !pendingRecording}>
-          New conversation
-        </button>
-      </header>
+      <AppHeader />
       <section className="conversation-heading">
         <p className="eyebrow">A little practice, every day</p>
         <h1>Let’s talk in English.</h1>
@@ -55,8 +48,18 @@ export function HomePage() {
         <p>First visit? <Link to="/setup">Set up your models and API key</Link>.</p>
       </section>
       <section className="conversation-thread" aria-label="Conversation">
+        <div className="thread-toolbar">
+          <span className="thread-label">Your conversation space</span>
+          <button className="secondary-button" onClick={reset} disabled={!turns.length && phase === 'idle' && !pendingRecording}>
+            New conversation
+          </button>
+        </div>
         {!turns.length && <div className="welcome-message">
-          <span className="partner-avatar" aria-hidden="true">AI</span>
+          <span className="partner-avatar" aria-hidden="true">
+            <svg viewBox="0 0 32 32" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+              <path d="M5 13v6M12 8v16M20 4v24M27 11v10" />
+            </svg>
+          </span>
           <div><h2>What’s on your mind?</h2>
             <p>Tell me about your day, something you enjoy, or a place you’d love to visit.</p>
           </div>

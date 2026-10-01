@@ -1,5 +1,5 @@
+import { AppHeader } from '../components/AppHeader';
 import { useState } from 'react';
-import { Link } from 'react-router';
 import { MAX_RECORDING_SECONDS } from '../features/conversation/audio';
 import type { Pronunciation } from '../features/conversation/feedback';
 import { analyzePractice, practicePhrases } from '../features/pronunciation/api';
@@ -21,8 +21,7 @@ export function PronunciationPage() {
     : phase === 'requesting' ? 'Allow microphone access to begin.'
     : phase === 'sending' ? 'Analyzing your pronunciation…' : 'Ready to practise.';
   return <main className="conversation-app">
-    <header className="app-header"><Link className="wordmark" to="/">Better English <span>AI</span></Link>
-      <Link to="/">Conversation</Link></header>
+    <AppHeader />
     <section className="conversation-heading"><p className="eyebrow">Pronunciation practice</p>
       <h1>Make every sound clearer.</h1><p>Read the sentence aloud, then review the sounds to practise.</p></section>
     <section className="message assistant-message" aria-label="Practice sentence">
@@ -30,7 +29,7 @@ export function PronunciationPage() {
       <button className="secondary-button" disabled={phase !== 'idle'} onClick={reset}>Next sentence</button>
     </section>
     <section className="conversation-composer" aria-label="Record your pronunciation">
-      <p role="status" className="recording-status">{status}</p>
+      <p role="status" className={`recording-status ${phase === 'recording' ? 'is-recording' : ''}`}><span aria-hidden="true" />{status}</p>
       {error && <p role="alert" className="error-message">{error}</p>}
       <div className="composer-actions">
         {phase === 'idle' && <button className="primary-button" onClick={() => void start()}>{result ? 'Try again' : 'Record sentence'}</button>}

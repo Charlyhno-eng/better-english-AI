@@ -1,3 +1,4 @@
+import { AppHeader } from '../components/AppHeader';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { postJson } from '../features/shared/api';
@@ -79,10 +80,7 @@ export function SetupPage() {
 
   const installing = status?.models.some((model) => model.state === 'installing');
   return <main className="conversation-app">
-    <header className="app-header">
-      <Link className="wordmark" to="/">Better English <span>AI</span></Link>
-      <Link to="/">Conversation</Link>
-    </header>
+    <AppHeader />
     <section className="conversation-heading">
       <h1>Set up your English tutor.</h1>
       <p>Save your API key and install the models here. Downloads can take several minutes and need internet access and free disk space. All local models use your CPU.</p>

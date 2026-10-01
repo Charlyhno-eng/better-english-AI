@@ -9,6 +9,7 @@ import './styles.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <div className="ambient-background" aria-hidden="true"><span /><span /><span /></div>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />

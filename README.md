@@ -24,4 +24,6 @@ Open the **Local** URL printed by the frontend (normally <http://127.0.0.1:5173>
 
 The frontend development proxy preserves the browser's host so Setup requests pass the backend's same-origin check, including when Vite selects another port. If an already-running frontend returns `403 Forbidden` when saving a key or installing models, restart `./scripts/dev-frontend.sh` to load the updated proxy configuration, then retry from Setup.
 
+The interface uses a dark navy theme with lavender and mint accents, shared navigation across practice pages, and gently animated background glows. Background animation and interface transitions are disabled when your system prefers reduced motion. The layout adapts to smaller screens.
+
 Return to the home page for conversation, or choose **Pronunciation practice** or **Writing practice**. Allow microphone access for voice exercises. Learner recordings and conversation history stay in memory; tutoring text is sent to GLM.
