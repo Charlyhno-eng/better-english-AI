@@ -38,8 +38,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .conversation-app { max-width: 70rem; margin: 0 auto; padding: 1.5rem 2rem 4rem; }
 .conversation-app.conversation-app--voice { padding-bottom: calc(18rem + env(safe-area-inset-bottom)); }
 .app-header { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #303a5680; }
-.wordmark { flex-shrink: 0; color: #eef0fb; font-size: 1.15rem; font-weight: 750; text-decoration: none; letter-spacing: -.04em; }
-.wordmark span { display: inline-block; font-size: .65rem; letter-spacing: .02em; color: var(--mint); background: #8ce7cf12; border: 1px solid #8ce7cf40; padding: .16rem .4rem; border-radius: .4rem; vertical-align: middle; margin-left: .35rem; }
+.wordmark { display: inline-flex; align-items: center; gap: .65rem; flex-shrink: 0; color: #eef0fb; font-size: 1.15rem; font-weight: 750; text-decoration: none; letter-spacing: -.04em; }
+.wordmark-logo { width: 2.75rem; height: 2.75rem; object-fit: contain; border-radius: .65rem; }
+.wordmark-name > span { display: inline-block; font-size: .65rem; letter-spacing: .02em; color: var(--mint); background: #8ce7cf12; border: 1px solid #8ce7cf40; padding: .16rem .4rem; border-radius: .4rem; vertical-align: middle; margin-left: .35rem; }
 .app-nav { display: flex; gap: .3rem; flex-wrap: wrap; }
 .app-nav a { text-decoration: none; color: var(--muted); padding: .55rem .75rem; border: 1px solid transparent; border-radius: .65rem; font-size: .82rem; font-weight: 600; transition: background .2s, color .2s; }
 .app-nav a:hover { background: #ffffff08; color: #eef0fb; }
