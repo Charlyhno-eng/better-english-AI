@@ -25,6 +25,7 @@ def test_private_key_persistence_and_immediate_use(tmp_path):
     assert setup.settings.glm.api_key.get_secret_value() == "test-private-key"
     assert setup.language_model._settings.api_key.get_secret_value() == "test-private-key"
     assert "test-private-key" not in json.dumps(setup.status())
+    assert setup.api_key() == "test-private-key"
     setup.save_key(SecretStr("replacement"))
     assert saved_key(setup.key_file).get_secret_value() == "replacement"
 
@@ -58,6 +59,9 @@ def test_web_key_and_validation(tmp_path):
         assert "private-key" not in response.text
         response = client.get("/api/setup")
         assert response.json()["glm_configured"] is True
+        key_response = client.get("/api/setup/glm")
+        assert key_response.json() == {"api_key": "private-key"}
+        assert key_response.headers["cache-control"] == "no-store"
         assert response.headers["cache-control"] == "no-store"
         assert "private-key" not in response.text
 

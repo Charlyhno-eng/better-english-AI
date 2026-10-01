@@ -41,6 +41,12 @@ def status(response: Response, service: SetupService = Depends(setup_service)):
     return service.status()
 
 
+@router.get("/glm")
+def configured_key(response: Response, service: SetupService = Depends(setup_service)):
+    response.headers["Cache-Control"] = "no-store"
+    return {"api_key": service.api_key()}
+
+
 @router.post("/glm", dependencies=[Depends(same_origin)])
 async def save_key(request: Request, response: Response, service: SetupService = Depends(setup_service)):
     payload = await read_json(request, KeyRequest, 32768)

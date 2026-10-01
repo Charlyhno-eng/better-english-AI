@@ -64,6 +64,10 @@ class SetupService:
             })} for model in MODEL_IDS],
         }
 
+    def api_key(self) -> str:
+        key = self.settings.glm.api_key
+        return key.get_secret_value() if key else ""
+
     def save_key(self, key: SecretStr) -> None:
         value = key.get_secret_value().strip()
         self.key_file.parent.mkdir(parents=True, exist_ok=True)

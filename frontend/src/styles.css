@@ -85,4 +85,8 @@ audio { display: block; width: 100%; max-width: 21rem; height: 2.5rem; }
 .setup-form label { display: block; font-weight: 650; }
 .setup-form input { width: 100%; font: inherit; padding: .7rem; border: 1px solid #c6d4c8; border-radius: .5rem; }
 .setup-form input:focus-visible { outline: 3px solid #d28138; outline-offset: 2px; }
+.api-key-input { position: relative; }
+.api-key-input input { padding-right: 3.25rem; }
+.setup-form .key-visibility-button { position: absolute; right: .35rem; top: 50%; transform: translateY(-50%); border: 0; background: transparent; border-radius: .35rem; min-width: 2.25rem; min-height: 2.25rem; margin: 0; }
+.setup-form .key-visibility-button:focus-visible { outline: 3px solid #d28138; outline-offset: 1px; }
 .setup-form button { margin-top: 1rem; }
