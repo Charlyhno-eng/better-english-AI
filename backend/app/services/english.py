@@ -1,5 +1,6 @@
 """English tutoring use cases; no HTTP, GLM SDK, or speech inference dependencies."""
 import json
+import unicodedata
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from typing import Literal
@@ -88,6 +89,12 @@ def _assessment_context(assessment: PronunciationAssessment) -> dict:
     }
 
 
+def _without_punctuation(text: str) -> str:
+    """Normalize punctuation and spacing so punctuation-only edits can stay silent."""
+    without_marks = "".join(char for char in text if not unicodedata.category(char).startswith("P"))
+    return " ".join(without_marks.split())
+
+
 class EnglishService:
     def __init__(self, provider: LanguageModel, *, max_input_characters: int = 20000,
                  max_history_messages: int = 10) -> None:
@@ -134,14 +141,23 @@ class EnglishService:
             '{"corrected_text": "corrected writing", "items": [{"category": '
             '"grammar|spelling|vocabulary|word_choice|style", "original": "original phrase", '
             '"replacement": "corrected phrase", "explanation": "one short English explanation"}]}. '
-            'Preserve meaning and review grammar, spelling and vocabulary. Do not invent mistakes. '
-            'Label optional style suggestions as style. If no corrections are needed, return the '
-            'unchanged learner text and an empty items array.', text,
+            'Preserve meaning and use natural conventional English punctuation in corrected_text. '
+            'Review meaningful grammar, spelling, vocabulary and word-choice errors without inventing '
+            'mistakes. Be conservative: do not list punctuation or spacing differences by themselves '
+            'as corrections or optional style suggestions. In particular, do '
+            'not flag a missing optional comma after a greeting or a space before punctuation when the '
+            'meaning is clear; silently normalize these in corrected_text. Only include an optional style '
+            'suggestion for a meaningful improvement to wording or clarity. If there are no meaningful '
+            'corrections, return the learner text with natural punctuation and an empty items array.', text,
         )
         try:
-            return Corrections.model_validate_json(content)
+            result = Corrections.model_validate_json(content)
         except ValidationError:
             raise ProviderUnavailableError("The language model returned invalid writing corrections.") from None
+        # Keep punctuation and spacing improvements in corrected_text, but do not present them as errors.
+        items = [item for item in result.items
+                 if _without_punctuation(item.original) != _without_punctuation(item.replacement)]
+        return Corrections(corrected_text=result.corrected_text, items=items)
 
     async def correct(self, text: str) -> str:
         return await self._request(

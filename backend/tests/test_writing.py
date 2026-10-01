@@ -64,6 +64,29 @@ def test_no_errors_unchanged_text():
     assert result.corrected_text == 'Hello!' and not result.items
 
 
+def test_writing_keeps_ideal_punctuation_but_hides_punctuation_only_nits():
+    output = {
+        'corrected_text': 'Hi, how are you doing today?',
+        'items': [
+            {'category': 'grammar', 'original': 'Hi how are you doing today ?',
+             'replacement': 'Hi, how are you doing today?',
+             'explanation': 'Add a comma after the greeting and move the question mark.'},
+            {'category': 'style', 'original': 'Hi how', 'replacement': 'Hi, how',
+             'explanation': 'The comma makes the greeting more natural.'},
+            {'category': 'spelling', 'original': 'tuday', 'replacement': 'today',
+             'explanation': "The word is spelled 'today' with an 'o'."},
+        ],
+    }
+    provider = SimpleNamespace(complete=AsyncMock(return_value=json.dumps(output)))
+
+    result = asyncio.run(EnglishService(provider).correct_writing('Hi how are you doing tuday ?'))
+
+    assert result.corrected_text == 'Hi, how are you doing today?'
+    assert [(item.original, item.replacement) for item in result.items] == [('tuday', 'today')]
+    system_prompt = provider.complete.await_args.args[0][0].content
+    assert 'silently normalize these in corrected_text' in system_prompt
+
+
 def test_bounds_and_content_type():
     app, provider = make_app('unused')
     with TestClient(app) as client:

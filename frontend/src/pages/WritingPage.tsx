@@ -52,7 +52,7 @@ export function WritingPage() {
     </form>
     {result && <section className="message assistant-message writing-results" aria-label="Writing corrections">
       <h2>Your corrections <span className="feedback-source">GLM</span></h2>
-      <LanguageCorrections corrections={result} />
+      <LanguageCorrections corrections={result} showCorrectedVersionWhenNoCorrections />
     </section>}
   </main>;
 }
