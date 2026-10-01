@@ -66,7 +66,7 @@ export function HomePage() {
     : 'Ready when you are.';
 
   return (
-    <main className="conversation-app">
+    <main className="conversation-app conversation-app--voice">
       <AppHeader />
       <section className="conversation-heading">
         <p className="eyebrow">A little practice, every day</p>
@@ -113,9 +113,9 @@ export function HomePage() {
             <TurnFeedback turn={incoming} pronunciationPending />
           </article>
         </div>}
-        <div ref={transcriptEnd} />
+        <div ref={transcriptEnd} className="conversation-thread-end" />
       </section>
-      <section className="conversation-composer" aria-label="Record a message">
+      <section className="conversation-composer conversation-composer--pinned" aria-label="Record a message">
         <p className={`recording-status ${phase === 'recording' ? 'is-recording' : ''}`} role="status" aria-live="polite">
           <span aria-hidden="true" />{status}
         </p>
