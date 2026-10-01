@@ -1,9 +1,22 @@
 import { AppHeader } from '../components/AppHeader';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { LanguageCorrections } from '../features/conversation/LanguageCorrections';
+import type { Corrections } from '../features/conversation/feedback';
 import { sendWritingMessage, type WritingMessage, type WritingTurn } from '../features/writing/api';
 
 interface ChatTurn extends WritingTurn { text: string; }
+
+function CorrectionDisclosure({ corrections }: { corrections: Corrections }) {
+  const issues = corrections.items.filter((item) => item.category !== 'style');
+  if (issues.length === 0) return null;
+  const serious = issues.some((item) => item.category === 'grammar' || item.category === 'spelling');
+  return <details className={`writing-corrections writing-corrections--${serious ? 'serious' : 'gentle'}`}>
+    <summary><span>{issues.length} correction{issues.length === 1 ? '' : 's'} to review</span></summary>
+    <div className="writing-corrections-content">
+      <LanguageCorrections corrections={{ ...corrections, items: issues }} showCorrectedVersionWhenNoCorrections />
+    </div>
+  </details>;
+}
 
 export function WritingPage() {
   const [text, setText] = useState('');
@@ -65,17 +78,16 @@ export function WritingPage() {
         {turns.map((turn, index) => <div className="conversation-turn" key={index}>
           <article className="message user-message"><h2>You</h2><p>{turn.text}</p></article>
           <article className="message assistant-message"><h2>English partner</h2><p>{turn.reply}</p>
-            <section className="learning-feedback" aria-label="Feedback on your English">
-              <h3>Your English</h3>
-              <p className="feedback-note">{turn.corrections.items.some((item) => item.category !== 'style')
-                ? 'There are a few language corrections to review below.' : 'Your English looks good. No language errors found.'}</p>
-              <LanguageCorrections corrections={turn.corrections} showCorrectedVersionWhenNoCorrections />
-            </section>
+            <CorrectionDisclosure corrections={turn.corrections} />
           </article>
         </div>)}
         {busy && <div className="conversation-turn">
           <article className="message user-message"><h2>You</h2><p>{pendingText}</p></article>
-          <article className="message assistant-message"><h2>English partner</h2><p>Thinking about your message…</p></article>
+          <article className="message assistant-message"><h2>English partner</h2>
+            <div className="writing-typing" role="status" aria-label="English partner is typing">
+              <span /><span /><span />
+            </div>
+          </article>
         </div>}
       </div>
       <div ref={end} />
@@ -87,9 +99,8 @@ export function WritingPage() {
         onChange={(event) => { setText(event.target.value); setError(''); }} />
       <p className="composer-hint">{text.length} / 10,000 characters. The latest 25 messages provide conversation context. This chat stays in memory until you leave the page.</p>
       <div className="composer-actions"><button className="primary-button" disabled={busy || !text.trim()}>
-        {busy ? 'Waiting for a reply…' : 'Send message'}</button>
+        Send message</button>
         {busy && <button type="button" className="secondary-button" onClick={cancel}>Cancel</button>}</div>
-      <p role="status">{busy ? 'Your partner is replying and reviewing your English…' : ''}</p>
       {error && <p className="error-message" role="alert">{error}</p>}
     </form>
   </main>;

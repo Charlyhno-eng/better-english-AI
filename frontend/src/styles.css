@@ -111,6 +111,21 @@ audio { display: block; width: 100%; max-width: 21rem; height: 2.5rem; }
 .writing-form textarea { resize: vertical; min-height: 12rem; }
 .writing-composer { margin-top: 1rem; }
 .writing-composer textarea { min-height: 6rem; }
+.writing-corrections { margin-top: 1rem; border: 1px solid; border-radius: .7rem; overflow: hidden; }
+.writing-corrections > summary { display: flex; align-items: center; gap: .55rem; padding: .45rem .7rem; cursor: pointer; list-style: none; font-size: .78rem; font-weight: 650; }
+.writing-corrections > summary::-webkit-details-marker { display: none; }
+.writing-corrections > summary::before { content: '›'; font-size: 1.2rem; line-height: 1; transition: transform .18s ease; }
+.writing-corrections[open] > summary::before { transform: rotate(90deg); }
+.writing-corrections--serious { color: #ffc0c8; border-color: #a44759; background: #391e2e; }
+.writing-corrections--gentle { color: #ffd29e; border-color: #916332; background: #33291e; }
+.writing-corrections-content { padding: .75rem .85rem; border-top: 1px solid currentColor; }
+.writing-corrections-content .corrected-text { margin-bottom: .65rem; }
+.writing-typing { display: inline-flex; align-items: center; gap: .28rem; min-height: 1.5rem; }
+.writing-typing span { width: .42rem; height: .42rem; border-radius: 50%; background: #a8b2cb; animation: writing-typing 1.2s ease-in-out infinite; }
+.writing-typing span:nth-child(2) { animation-delay: .16s; }
+.writing-typing span:nth-child(3) { animation-delay: .32s; }
+@keyframes writing-typing { 0%, 60%, 100% { opacity: .45; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-.28rem); } }
+@media (prefers-reduced-motion: reduce) { .writing-typing span { animation: none; } }
 textarea::placeholder, input::placeholder { color: #95a2bd; opacity: 1; }
 .writing-form .composer-actions { justify-content: flex-start; margin-top: 1.25rem; }
 .writing-form p[role='status']:empty { margin: 0; }
