@@ -36,3 +36,32 @@ test('shared transport propagates cancellation without retry', async () => {
     assert.equal(calls, 1);
   } finally { globalThis.fetch = previous; }
 });
+
+
+test('writing chat sends only the latest 25 messages and returns conversation and corrections', async (t) => {
+  const { sendWritingMessage } = await import('../src/features/writing/api.ts');
+  const history = Array.from({ length: 30 }, (_, i) => ({
+    role: i % 2 ? 'assistant' : 'user', content: `Message ${i}`,
+  }));
+  const signal = new AbortController().signal;
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(url, '/api/writing/turn');
+    assert.equal(options.signal, signal);
+    assert.deepEqual(JSON.parse(options.body), { text: 'Hello!', history: history.slice(-25) });
+    return Response.json({ reply: ' How are you? ', corrections: { corrected_text: 'Hello!', items: [] } });
+  });
+  assert.deepEqual(await sendWritingMessage('Hello!', history, signal), {
+    reply: 'How are you?', corrections: { corrected_text: 'Hello!', items: [] },
+  });
+});
+
+test('writing chat rejects incomplete replies and preserves safe provider errors', async (t) => {
+  const { sendWritingMessage } = await import('../src/features/writing/api.ts');
+  const signal = new AbortController().signal;
+  const fetch = t.mock.method(globalThis, 'fetch', async () => Response.json({ reply: 'Hi!' }));
+  await assert.rejects(sendWritingMessage('Hello!', [], signal), /unexpected writing response/);
+  fetch.mock.mockImplementation(async () => Response.json({
+    error: { message: 'GLM unavailable.' },
+  }, { status: 503 }));
+  await assert.rejects(sendWritingMessage('Hello!', [], signal), /GLM unavailable/);
+});

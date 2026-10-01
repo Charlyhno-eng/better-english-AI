@@ -26,6 +26,24 @@ class Corrections(BaseModel):
     items: list[Correction]
 
 
+class WritingTurn(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True, str_strip_whitespace=True)
+    reply: str = Field(min_length=1)
+    corrections: Corrections
+
+
+_WRITING_RULES = (
+    'Preserve meaning and use natural conventional English punctuation in corrected_text. '
+    'Review meaningful grammar, spelling, vocabulary and word-choice errors without inventing '
+    'mistakes. Be conservative: do not list punctuation or spacing differences by themselves '
+    'as corrections or optional style suggestions. In particular, do '
+    'not flag a missing optional comma after a greeting or a space before punctuation when the '
+    'meaning is clear; silently normalize these in corrected_text. Only include an optional style '
+    'suggestion for a meaningful improvement to wording or clarity. If there are no meaningful '
+    'corrections, return the learner text with natural punctuation and an empty items array. '
+)
+
+
 @dataclass(frozen=True)
 class EnglishTurn:
     reply: str
@@ -95,6 +113,14 @@ def _without_punctuation(text: str) -> str:
     return " ".join(without_marks.split())
 
 
+def _writing_corrections(result: Corrections) -> Corrections:
+    # Keep punctuation and spacing improvements in corrected_text without presenting them as errors.
+    return Corrections(corrected_text=result.corrected_text, items=[
+        item for item in result.items
+        if _without_punctuation(item.original) != _without_punctuation(item.replacement)
+    ])
+
+
 class EnglishService:
     def __init__(self, provider: LanguageModel, *, max_input_characters: int = 20000,
                  max_history_messages: int = 10) -> None:
@@ -141,23 +167,31 @@ class EnglishService:
             '{"corrected_text": "corrected writing", "items": [{"category": '
             '"grammar|spelling|vocabulary|word_choice|style", "original": "original phrase", '
             '"replacement": "corrected phrase", "explanation": "one short English explanation"}]}. '
-            'Preserve meaning and use natural conventional English punctuation in corrected_text. '
-            'Review meaningful grammar, spelling, vocabulary and word-choice errors without inventing '
-            'mistakes. Be conservative: do not list punctuation or spacing differences by themselves '
-            'as corrections or optional style suggestions. In particular, do '
-            'not flag a missing optional comma after a greeting or a space before punctuation when the '
-            'meaning is clear; silently normalize these in corrected_text. Only include an optional style '
-            'suggestion for a meaningful improvement to wording or clarity. If there are no meaningful '
-            'corrections, return the learner text with natural punctuation and an empty items array.', text,
+            + _WRITING_RULES, text,
         )
         try:
             result = Corrections.model_validate_json(content)
         except ValidationError:
             raise ProviderUnavailableError("The language model returned invalid writing corrections.") from None
-        # Keep punctuation and spacing improvements in corrected_text, but do not present them as errors.
-        items = [item for item in result.items
-                 if _without_punctuation(item.original) != _without_punctuation(item.replacement)]
-        return Corrections(corrected_text=result.corrected_text, items=items)
+        return _writing_corrections(result)
+
+    async def writing_turn(self, text: str, *, history: Sequence[Message] = ()) -> WritingTurn:
+        content = await self._request(
+            'Have a thoughtful, natural written conversation with the learner. Respond to what they '
+            'said, use the previous messages to stay on topic, and ask a relevant follow-up when useful. '
+            'Keep language feedback separate from the conversational reply. Review only the latest '
+            'learner message, not earlier messages. Return only JSON, no Markdown, with shape '
+            '{"reply": "conversational English reply", "corrections": {"corrected_text": '
+            '"latest learner message corrected", "items": [{"category": '
+            '"grammar|spelling|vocabulary|word_choice|style", "original": "original phrase", '
+            '"replacement": "corrected phrase", "explanation": "one short English explanation"}]}}. '
+            + _WRITING_RULES, text, history=history, history_limit=25,
+        )
+        try:
+            result = WritingTurn.model_validate_json(content)
+        except ValidationError:
+            raise ProviderUnavailableError("The language model returned an invalid writing response.") from None
+        return WritingTurn(reply=result.reply, corrections=_writing_corrections(result.corrections))
 
     async def correct(self, text: str) -> str:
         return await self._request(
@@ -175,11 +209,13 @@ class EnglishService:
     async def _request(
         self, instruction: str, text: str, *, history: Sequence[Message] = (),
         pronunciation: PronunciationAssessment | None = None,
+        history_limit: int | None = None,
     ) -> str:
         text = text.strip()
         if not text or len(text) > self._max_input_characters:
             raise InvalidTextError("The learner text is empty or exceeds the input limit.")
-        recent = list(history[-self._max_history_messages:]) if self._max_history_messages else []
+        limit = self._max_history_messages if history_limit is None else history_limit
+        recent = list(history[-limit:]) if limit else []
         if any(message.role not in {"user", "assistant"} or not message.content.strip() for message in recent):
             raise InvalidTextError("Conversation history must contain nonempty user or assistant messages.")
         data = {"learner_text": text}

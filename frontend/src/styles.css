@@ -109,6 +109,8 @@ audio { display: block; width: 100%; max-width: 21rem; height: 2.5rem; }
 .writing-form label, .setup-form label { display: block; font-weight: 650; margin-bottom: .6rem; font-size: .9rem; }
 .writing-form textarea, .setup-form input { width: 100%; color: #eef0fb; background: #0e1527; padding: 1rem; border: 1px solid #46516d; border-radius: .75rem; }
 .writing-form textarea { resize: vertical; min-height: 12rem; }
+.writing-composer { margin-top: 1rem; }
+.writing-composer textarea { min-height: 6rem; }
 textarea::placeholder, input::placeholder { color: #95a2bd; opacity: 1; }
 .writing-form .composer-actions { justify-content: flex-start; margin-top: 1.25rem; }
 .writing-form p[role='status']:empty { margin: 0; }
