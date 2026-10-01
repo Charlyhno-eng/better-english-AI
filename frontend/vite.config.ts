@@ -9,7 +9,11 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       strictPort: false,
       proxy: {
-        '/api': env.BACKEND_URL || 'http://127.0.0.1:8000',
+        '/api': {
+          target: env.BACKEND_URL || 'http://127.0.0.1:8000',
+          // Keep the browser's Host and Origin aligned for setup's same-origin check.
+          changeOrigin: false,
+        },
       },
     },
   };

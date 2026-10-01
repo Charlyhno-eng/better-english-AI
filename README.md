@@ -22,4 +22,6 @@ Then start the backend and frontend in separate terminals:
 
 Open the **Local** URL printed by the frontend (normally <http://127.0.0.1:5173>; an available port is selected automatically if 5173 is occupied) and select **Setup** to save your GLM API key and install Parakeet, Pocket TTS and OpenPronounce resources. Downloads need internet access and several GB of free disk space; progress and retries are available on that page. No model commands or environment-file editing are needed. The key stays in a private, Git-ignored backend file, takes effect immediately, and can be revealed from Setup when needed.
 
+The frontend development proxy preserves the browser's host so Setup requests pass the backend's same-origin check, including when Vite selects another port. If an already-running frontend returns `403 Forbidden` when saving a key or installing models, restart `./scripts/dev-frontend.sh` to load the updated proxy configuration, then retry from Setup.
+
 Return to the home page for conversation, or choose **Pronunciation practice** or **Writing practice**. Allow microphone access for voice exercises. Learner recordings and conversation history stay in memory; tutoring text is sent to GLM.

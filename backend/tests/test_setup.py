@@ -110,6 +110,11 @@ def test_web_install_and_unknown_model(tmp_path):
     app.state.setup_service = setup
     with TestClient(app) as client:
         assert client.post('/api/setup/models/parakeet', json={}).status_code == 403
+        for origin in ('https://untrusted.example', 'http://testserver:5173'):
+            for model in ('parakeet', 'openpronounce', 'pocket-tts'):
+                assert client.post(f'/api/setup/models/{model}', json={},
+                                   headers={"Origin": origin}).status_code == 403
+        setup._download.assert_not_called()
         headers = {"Origin": "http://testserver"}
         assert client.post('/api/setup/models/unknown', json={}, headers=headers).status_code == 422
         response = client.post('/api/setup/models/parakeet', json={}, headers=headers)
