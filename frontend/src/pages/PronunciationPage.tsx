@@ -1,10 +1,10 @@
 import { AppHeader } from '../components/AppHeader';
 import { useState } from 'react';
-import { MAX_RECORDING_SECONDS } from '../features/conversation/audio';
-import type { Pronunciation } from '../features/conversation/feedback';
+import { MAX_RECORDING_SECONDS } from '../features/speech/audio';
+import type { Pronunciation } from '../features/shared/feedback';
 import { analyzePractice, practicePhrases } from '../features/pronunciation/api';
 
-import { useVoiceInput } from '../features/conversation/useVoiceInput';
+import { useVoiceInput } from '../features/speech/useVoiceInput';
 export function PronunciationPage() {
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [result, setResult] = useState<Pronunciation | null>(null);

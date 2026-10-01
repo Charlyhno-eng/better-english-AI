@@ -1,5 +1,5 @@
 import { postJson, audioBase64 } from '../shared/api.ts';
-import { parseFeedback, type Pronunciation } from '../conversation/feedback.ts';
+import { parseFeedback, type Pronunciation } from '../shared/feedback.ts';
 
 export const practicePhrases = [
   { text: 'I think three things are worth trying.', focus: 'Practise the th sounds in think, three and things.' },

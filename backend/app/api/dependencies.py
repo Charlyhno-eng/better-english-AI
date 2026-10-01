@@ -4,7 +4,6 @@ from app.core.config import Settings
 from app.services.conversation import ConversationService
 from app.services.health import HealthService
 from app.services.english import EnglishService
-from app.services.transcription import TranscriptionService
 from app.services.synthesis import SynthesisService
 from app.services.pronunciation import PronunciationService
 
@@ -15,10 +14,6 @@ def get_settings(request: Request) -> Settings:
 
 def get_health_service() -> HealthService:
     return HealthService()
-
-
-def get_transcription_service(request: Request) -> TranscriptionService:
-    return request.app.state.transcription_service
 
 
 def get_synthesis_service(request: Request) -> SynthesisService:

@@ -1,5 +1,5 @@
-import { postJson, audioBase64, isObject } from '../shared/api.ts';
-import { parseFeedback, type Corrections, type Pronunciation } from './feedback.ts';
+import { audioBase64, isObject } from '../shared/api.ts';
+import { parseFeedback, type Corrections, type Pronunciation } from '../shared/feedback.ts';
 
 export interface HistoryMessage {
   role: 'user' | 'assistant';
@@ -14,16 +14,6 @@ export interface VoiceTurn {
   reply: string;
   audio: { media_type: string; content_base64: string } | null;
   warnings: { code: string; message: string }[];
-}
-
-export async function sendVoiceMessage(
-  recording: Blob, history: HistoryMessage[], signal: AbortSignal,
-): Promise<VoiceTurn> {
-  const data = await postJson('/api/conversation/turn', {
-    audio_base64: await audioBase64(recording), media_type: 'audio/wav', history: history.slice(-10),
-  }, signal);
-  if (!isVoiceTurn(data)) throw new Error('The backend returned an unexpected response. Please try again.');
-  return { ...data, ...parseFeedback(data as unknown as Record<string, unknown>) };
 }
 
 export async function streamVoiceMessage(

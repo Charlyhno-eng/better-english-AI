@@ -2,7 +2,7 @@ import base64
 import json
 import logging
 from contextlib import aclosing
-from typing import Annotated, Literal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import StreamingResponse
@@ -13,7 +13,7 @@ from app.api.dependencies import get_conversation_service, get_settings
 from app.audio.contracts import PronunciationAssessment
 from app.audio.contracts import AudioData
 from app.api.requests import read_json, decode_audio, encoded_audio_limit
-from app.api.schemas import ErrorResponse
+from app.api.schemas import ErrorResponse, HistoryMessage
 from app.core.config import Settings
 from app.core.errors import ApplicationError
 from app.services.conversation import ConversationService, ConversationWarning, ConversationTurn
@@ -21,12 +21,6 @@ from app.services.english import Corrections
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-class HistoryMessage(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    role: Literal["user", "assistant"]
-    content: str = Field(min_length=1)
 
 
 class ConversationRequest(BaseModel):

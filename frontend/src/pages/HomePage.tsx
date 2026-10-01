@@ -1,10 +1,10 @@
 import { AppHeader } from '../components/AppHeader';
-import { useVoiceInput } from '../features/conversation/useVoiceInput';
+import { useVoiceInput } from '../features/speech/useVoiceInput';
 import { Link } from 'react-router';
 import { useEffect, useRef, useState } from 'react';
 import { replyAudioBlob, streamVoiceMessage, type HistoryMessage, type VoiceTurn } from '../features/conversation/api';
 import { StreamingAudio } from '../features/conversation/StreamingAudio';
-import { MAX_RECORDING_SECONDS } from '../features/conversation/audio';
+import { MAX_RECORDING_SECONDS } from '../features/speech/audio';
 import { TurnFeedback } from '../features/conversation/TurnFeedback';
 import { ReplyAudio } from '../features/conversation/ReplyAudio';
 

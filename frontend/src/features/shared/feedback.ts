@@ -1,3 +1,5 @@
+import { isObject } from './api.ts';
+
 export const correctionLabels = {
   grammar: 'Grammar', spelling: 'Spelling', vocabulary: 'Vocabulary',
   word_choice: 'Word choice', style: 'Optional style',
@@ -19,22 +21,20 @@ export interface Pronunciation {
   feedback: string;
 }
 
-const object = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
-
 /** Validate secondary fields independently: bad feedback must not discard a conversation. */
 export function parseFeedback(value: Record<string, unknown>): {
   corrections: Corrections | null; pronunciation: Pronunciation | null; pronunciation_feedback: string | null;
 } {
   const corrections = value.corrections;
   const pronunciation = value.pronunciation;
-  const validCorrections = object(corrections) && typeof corrections.corrected_text === 'string'
-    && Array.isArray(corrections.items) && corrections.items.every((item) => object(item)
+  const validCorrections = isObject(corrections) && typeof corrections.corrected_text === 'string'
+    && Array.isArray(corrections.items) && corrections.items.every((item) => isObject(item)
       && typeof item.category === 'string' && Object.hasOwn(correctionLabels, item.category)
       && typeof item.original === 'string' && typeof item.replacement === 'string'
       && typeof item.explanation === 'string');
-  const validPronunciation = object(pronunciation) && typeof pronunciation.reference_inferred === 'boolean'
+  const validPronunciation = isObject(pronunciation) && typeof pronunciation.reference_inferred === 'boolean'
     && typeof pronunciation.feedback === 'string' && Array.isArray(pronunciation.errors)
-    && pronunciation.errors.every((item) => object(item) && typeof item.word === 'string'
+    && pronunciation.errors.every((item) => isObject(item) && typeof item.word === 'string'
       && typeof item.position === 'number' && Number.isInteger(item.position) && item.position >= 0
       && typeof item.expected === 'string' && (item.observed === null || typeof item.observed === 'string'));
   return {

@@ -149,17 +149,6 @@ class EnglishService:
         feedback = feedback.strip() if pronunciation is not None and isinstance(feedback, str) else None
         return EnglishTurn(data["reply"].strip(), corrections, feedback or None)
 
-    async def converse(
-        self, text: str, *, history: Sequence[Message] = (),
-        pronunciation: PronunciationAssessment | None = None,
-    ) -> str:
-        return await self._request(
-            "Continue a conversational English practice session. Give a concise conversational reply "
-            "and a relevant follow-up question. Briefly correct grammar, spelling, vocabulary or "
-            "word choice when useful, with a corrected example and an explanation.",
-            text, history=history, pronunciation=pronunciation,
-        )
-
     async def correct_writing(self, text: str) -> Corrections:
         """Structured writing corrections using the shared tutor and correction schema."""
         content = await self._request(
@@ -192,13 +181,6 @@ class EnglishService:
         except ValidationError:
             raise ProviderUnavailableError("The language model returned an invalid writing response.") from None
         return WritingTurn(reply=result.reply, corrections=_writing_corrections(result.corrections))
-
-    async def correct(self, text: str) -> str:
-        return await self._request(
-            "Review the learner's English writing. Give a corrected version preserving their meaning "
-            "and explain each grammar, spelling, vocabulary and word-choice correction. "
-            "Distinguish optional style suggestions from errors. If correct, say so briefly.", text,
-        )
 
     async def pronunciation_feedback(self, assessment: PronunciationAssessment) -> str:
         return await self._request(

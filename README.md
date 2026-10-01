@@ -33,3 +33,14 @@ Writing practice is a text chat: a three-dot indicator appears while your partne
 Voice replies appear as text first and play progressively as Pocket TTS generates audio, so playback no longer waits for the entire WAV or pronunciation analysis. The recording controls stay pinned to the bottom of the window while you scroll through the conversation. Spoken replies use one or two short sentences; language corrections remain separate in the initial GLM request. Pronunciation analysis follows the audio, and coaching uses a separate best-effort GLM request when analysis succeeds. Both share the conversation pronunciation time budget (five seconds by default). The complete voice reply remains available for replay. Select **Stop voice reply** to stop listening while feedback continues, or cancel the request or start a new recording. If your browser blocks automatic playback, use the replay control when the turn finishes.
 
 Installed Parakeet and Pocket TTS models load in the background when the backend starts (`BETTER_ENGLISH_AUDIO__PRELOAD_MODELS=false` disables this). A first message sent before loading finishes can still take longer; subsequent messages reuse the models. GLM response time and CPU speed still affect latency. The frontend uses `POST /api/conversation/turn/stream`, which sends newline-delimited `reply`, `audio`, `feedback`, and `done` events; `audio` events contain playable base64 PCM16 WAV fragments. Reverse proxies should allow unbuffered responses. The original `POST /api/conversation/turn` endpoint remains available for clients that need a single JSON response.
+
+Development code is split by responsibility. In `backend/app`, `api` handles HTTP requests, `services` coordinates tutoring use cases, `ai` and `audio` contain replaceable providers, and `core` owns configuration and errors. In `frontend/src`, `pages` compose the interface and `features` owns conversation, writing and pronunciation behavior. Shared recording code lives in `features/speech`; transport, feedback parsing and correction display live in `features/shared`.
+
+After installation, run the checks from the project root:
+
+```sh
+(cd backend && .venv/bin/python -m pytest -q)
+(cd frontend && npm test && npm run build)
+```
+
+The tests use fake providers and do not require a GLM key or downloaded models. The frontend build includes strict TypeScript checks for unused locals and parameters.

@@ -1,4 +1,4 @@
-import { LanguageCorrections } from './LanguageCorrections';
+import { LanguageCorrections } from '../shared/LanguageCorrections';
 import type { VoiceTurn } from './api';
 
 export function TurnFeedback({ turn, pronunciationPending = false }: { turn: VoiceTurn; pronunciationPending?: boolean }) {

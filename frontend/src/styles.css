@@ -135,7 +135,6 @@ audio { display: block; width: 100%; max-width: 21rem; height: 2.5rem; }
 @media (prefers-reduced-motion: reduce) { .writing-typing span { animation: none; } }
 textarea::placeholder, input::placeholder { color: #95a2bd; opacity: 1; }
 .writing-form .composer-actions { justify-content: flex-start; margin-top: 1.25rem; }
-.writing-form p[role='status']:empty { margin: 0; }
 .setup-card { padding: 1.5rem; margin-bottom: 1rem; overflow-wrap: anywhere; }
 .setup-card h2 { margin-top: 0; font-size: 1.15rem; }
 .setup-card > p { color: var(--muted); }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseFeedback, correctionLabels } from '../src/features/conversation/feedback.ts';
-import { sendVoiceMessage } from '../src/features/conversation/api.ts';
+import { parseFeedback, correctionLabels } from '../src/features/shared/feedback.ts';
+import { streamVoiceMessage } from '../src/features/conversation/api.ts';
 
 const corrections = { corrected_text: 'I went there.', items: [
   { category: 'grammar', original: 'goed', replacement: 'went', explanation: 'Use the irregular past tense.' },
@@ -42,11 +42,11 @@ test('malformed pronunciation data and non-string feedback do not crash renderin
 });
 
 test('voice response exposes validated teaching fields without dropping useful conversation', async (t) => {
-  t.mock.method(globalThis, 'fetch', async () => Response.json({
+  t.mock.method(globalThis, 'fetch', async () => new Response(JSON.stringify({ type: 'done', data: {
     transcript: 'I goed there.', reply: 'What did you do?', audio: null, warnings: [],
     corrections, pronunciation, pronunciation_feedback: 'Practice tip',
-  }));
-  const result = await sendVoiceMessage(new Blob(['wav']), [], new AbortController().signal);
+  } }) + '\n'));
+  const result = await streamVoiceMessage(new Blob(['wav']), [], new AbortController().signal, () => {}, () => {});
   assert.deepEqual(result.corrections, corrections);
   assert.deepEqual(result.pronunciation, pronunciation);
   assert.equal(result.pronunciation_feedback, 'Practice tip');

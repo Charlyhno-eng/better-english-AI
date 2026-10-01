@@ -4,8 +4,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.api.dependencies import get_english_service, get_settings
-from app.api.schemas import ErrorResponse
-from app.api.conversation import HistoryMessage
+from app.api.schemas import ErrorResponse, HistoryMessage
 from app.ai.contracts import Message
 from app.api.requests import read_json
 from app.core.config import Settings

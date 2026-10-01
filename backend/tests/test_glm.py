@@ -108,12 +108,12 @@ def test_provider_validates_input(messages):
 
 
 def test_conversation_history_and_assessment():
-    provider = SimpleNamespace(complete=AsyncMock(return_value='Try this sound.'))
+    provider = SimpleNamespace(complete=AsyncMock(return_value=turn_payload()))
     assessment = PronunciationAssessment((PhonemeAssessment('ə', 'ɛ', .8),),
         reference_text='hello', reference_inferred=True, transcript='hello',
         pitch_hz=(100, 110, 120), energy=(.1, .2), acoustic_distance=8)
     service = EnglishService(provider, max_history_messages=2)
-    asyncio.run(service.converse(' Hi ', history=[Message('user', 'old'),
+    asyncio.run(service.converse_turn(' Hi ', history=[Message('user', 'old'),
         Message('assistant', 'How are you?'), Message('user', 'Good')], pronunciation=assessment))
     messages = provider.complete.call_args.args[0]
     assert [m.role for m in messages] == ['system', 'assistant', 'user', 'user']
@@ -129,9 +129,11 @@ def test_conversation_history_and_assessment():
 
 
 def test_correction_and_feedback_prompts():
-    provider = SimpleNamespace(complete=AsyncMock(return_value='Explanation'))
+    provider = SimpleNamespace(complete=AsyncMock(return_value=json.dumps({
+        'corrected_text': 'I have an apple.', 'items': [],
+    })))
     service = EnglishService(provider)
-    asyncio.run(service.correct('I has a apple.'))
+    asyncio.run(service.correct_writing('I has a apple.'))
     prompt = provider.complete.call_args.args[0][0].content
     for subject in ('grammar', 'spelling', 'vocabulary', 'explain', 'meaning'):
         assert subject in prompt.lower()
@@ -147,7 +149,7 @@ def test_correction_and_feedback_prompts():
 def test_service_invalid_input(text, history, limit):
     provider = SimpleNamespace(complete=AsyncMock())
     with pytest.raises(InvalidTextError):
-        asyncio.run(EnglishService(provider, max_input_characters=limit).converse(text, history=history))
+        asyncio.run(EnglishService(provider, max_input_characters=limit).converse_turn(text, history=history))
     provider.complete.assert_not_called()
 
 
@@ -171,14 +173,14 @@ def test_configuration_validation(config):
 def test_application_owns_and_closes_glm(monkeypatch):
     import app.main as main
     from app.api.dependencies import get_english_service
-    provider = SimpleNamespace(complete=AsyncMock(return_value='Hi'), close=AsyncMock())
+    provider = SimpleNamespace(complete=AsyncMock(return_value=turn_payload(reply='Hi')), close=AsyncMock())
     factory = MagicMock(return_value=provider)
     monkeypatch.setattr(main, 'GLMProvider', factory)
     settings = Settings(_env_file=None)
     app = main.create_app(settings)
     async def run():
         async with app.router.lifespan_context(app):
-            assert await app.state.english_service.converse('hello') == 'Hi'
+            assert (await app.state.english_service.converse_turn('hello')).reply == 'Hi'
             assert get_english_service(SimpleNamespace(app=app)) is app.state.english_service
     asyncio.run(run())
     factory.assert_called_once_with(settings.glm)
