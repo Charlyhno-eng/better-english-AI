@@ -2,14 +2,14 @@ import base64
 import json
 import logging
 from contextlib import aclosing
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.ai.contracts import Message
-from app.api.dependencies import get_conversation_service, get_settings
+from app.api.dependencies import get_conversation_service, get_settings, get_english_service, get_synthesis_service
 from app.audio.contracts import PronunciationAssessment
 from app.audio.contracts import AudioData
 from app.api.requests import read_json, decode_audio, encoded_audio_limit
@@ -17,7 +17,8 @@ from app.api.schemas import ErrorResponse, HistoryMessage
 from app.core.config import Settings
 from app.core.errors import ApplicationError
 from app.services.conversation import ConversationService, ConversationWarning, ConversationTurn
-from app.services.english import Corrections
+from app.services.english import Corrections, EnglishService
+from app.services.synthesis import SynthesisService
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -45,6 +46,44 @@ class ConversationResponse(BaseModel):
     audio: ConversationAudio | None
     pronunciation: PronunciationAssessment | None
     warnings: tuple[ConversationWarning, ...]
+
+
+class ConversationStartRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    topic: str = Field(min_length=1, max_length=500)
+    mode: Literal["voice", "writing"]
+
+
+class ConversationStartResponse(BaseModel):
+    reply: str
+    audio: ConversationAudio | None
+    warnings: tuple[ConversationWarning, ...]
+
+
+@router.post("/conversation/start", response_model=ConversationStartResponse,
+             summary="Let the AI open a conversation about a chosen topic",
+             responses={code: {"model": ErrorResponse} for code in (400, 413, 415, 422, 503)},
+             openapi_extra={"requestBody": {"required": True, "content": {"application/json": {
+                 "schema": ConversationStartRequest.model_json_schema()}}}})
+async def start_conversation(
+    request: Request, response: Response,
+    english: Annotated[EnglishService, Depends(get_english_service)],
+    synthesis: Annotated[SynthesisService, Depends(get_synthesis_service)],
+) -> ConversationStartResponse:
+    payload = await read_json(request, ConversationStartRequest, 8192)
+    reply = await english.start_conversation(payload.topic)
+    audio = None
+    warnings = []
+    if payload.mode == "voice":
+        try:
+            spoken = await synthesis.synthesize(reply)
+            audio = ConversationAudio(media_type=spoken.media_type,
+                                      content_base64=base64.b64encode(spoken.content).decode("ascii"))
+        except Exception as exc:
+            logger.warning("Opening speech failed (%s)", type(exc).__name__)
+            warnings.append(ConversationWarning("speech_unavailable", "The reply audio is unavailable."))
+    response.headers["Cache-Control"] = "no-store"
+    return ConversationStartResponse(reply=reply, audio=audio, warnings=tuple(warnings))
 
 
 # Inline the nested model for the manually documented bounded JSON reader.

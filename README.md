@@ -8,6 +8,10 @@ Explore pronunciation practice to work on spoken English.
 Use writing practice to improve grammar, spelling, and word choice.
 Review corrections and explanations alongside your writing.
 Listen to spoken replies during voice conversations.
+In voice and writing practice, enter a topic or choose a suggestion and select **Let AI start**.
+Your English partner opens with a question; reply by speaking or writing to continue on that topic.
+Voice openings include playable audio when speech generation is available. You can also start the conversation yourself.
+Select **New conversation** to clear the topic and messages and cancel any pending opening request.
 Set up the application locally and practise at your own pace.
 Speech recognition, pronunciation analysis, and voice generation run locally on CPU.
 Conversation and corrections use the GLM API.

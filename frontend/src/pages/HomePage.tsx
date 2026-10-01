@@ -8,9 +8,15 @@ import { MAX_RECORDING_SECONDS } from '../features/speech/audio';
 import { TurnFeedback } from '../features/conversation/TurnFeedback';
 import { ReplyAudio } from '../features/conversation/ReplyAudio';
 
+import { ConversationStarter, OpeningMessage } from '../features/conversation/ConversationStarter';
+import { conversationHistory, type ConversationOpening } from '../features/conversation/start';
+
 interface DisplayTurn { result: VoiceTurn; audio: Blob | null; autoPlay: boolean; }
 
 export function HomePage() {
+  const [opening, setOpening] = useState<ConversationOpening | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [session, setSession] = useState(0);
   const [turns, setTurns] = useState<DisplayTurn[]>([]);
   const [incoming, setIncoming] = useState<VoiceTurn | null>(null);
   const [reviewing, setReviewing] = useState(false);
@@ -23,10 +29,10 @@ export function HomePage() {
       if (!playback.current) { try { playback.current = new StreamingAudio(setPlaying); } catch { /* Replay remains available. */ } }
       const abort = () => { playback.current?.stop(); playback.current = null; setIncoming(null); setReviewing(false); };
       signal.addEventListener('abort', abort, { once: true });
-      const history: HistoryMessage[] = turns.flatMap(({ result }) => [
+      const history: HistoryMessage[] = conversationHistory(opening, turns.flatMap(({ result }) => [
         { role: 'user' as const, content: result.transcript },
         { role: 'assistant' as const, content: result.reply },
-      ]);
+      ]), 10);
       try {
         return await streamVoiceMessage(blob, history, signal,
           (turn, stage) => { if (!signal.aborted) { setIncoming(turn); setReviewing(stage === 'feedback'); } },
@@ -55,9 +61,10 @@ export function HomePage() {
   );
   useEffect(() => () => playback.current?.stop(), []);
   useEffect(() => {
+    if (!turns.length && !opening && phase === 'idle') return;
     transcriptEnd.current?.scrollIntoView?.({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'end' });
-  }, [turns.length, phase, incoming?.reply]);
-  function reset() { resetInput(); playback.current?.stop(); playback.current = null; setIncoming(null); setReviewing(false); setTurns([]); }
+  }, [turns.length, phase, incoming?.reply, opening]);
+  function reset() { resetInput(); playback.current?.stop(); playback.current = null; setIncoming(null); setReviewing(false); setTurns([]); setOpening(null); setStarting(false); setSession(value => value + 1); }
   function cancelRequest() { cancel(); playback.current?.stop(); playback.current = null; setIncoming(null); setReviewing(false); }
 
   const status = phase === 'requesting' ? 'Allow microphone access to begin.'
@@ -65,8 +72,10 @@ export function HomePage() {
     : phase === 'sending' ? reviewing ? 'Reviewing your pronunciation…' : incoming ? 'Your English partner is speaking…' : 'Your English partner is preparing a reply…'
     : 'Ready when you are.';
 
+  const activeConversation = !!opening || turns.length > 0 || phase !== 'idle' || !!pendingRecording;
+
   return (
-    <main className="conversation-app conversation-app--voice">
+    <main className={`conversation-app ${activeConversation ? 'conversation-app--voice' : ''}`}>
       <AppHeader />
       <section className="conversation-heading">
         <p className="eyebrow">A little practice, every day</p>
@@ -77,20 +86,13 @@ export function HomePage() {
       <section className="conversation-thread" aria-label="Conversation">
         <div className="thread-toolbar">
           <span className="thread-label">Your conversation space</span>
-          <button className="secondary-button" onClick={reset} disabled={!turns.length && phase === 'idle' && !pendingRecording}>
+          <button className="secondary-button" onClick={reset} disabled={!opening && !starting && !turns.length && phase === 'idle' && !pendingRecording}>
             New conversation
           </button>
         </div>
-        {!turns.length && <div className="welcome-message">
-          <span className="partner-avatar" aria-hidden="true">
-            <svg viewBox="0 0 32 32" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
-              <path d="M5 13v6M12 8v16M20 4v24M27 11v10" />
-            </svg>
-          </span>
-          <div><h2>What’s on your mind?</h2>
-            <p>Tell me about your day, something you enjoy, or a place you’d love to visit.</p>
-          </div>
-        </div>}
+        {!turns.length && !opening && <ConversationStarter key={session} mode="voice"
+          disabled={phase !== 'idle' || !!pendingRecording} onStarted={setOpening} onBusy={setStarting} />}
+        {opening && <OpeningMessage opening={opening} paused={phase !== 'idle'} />}
         {turns.map(({ result, audio, autoPlay }, index) => <div className="conversation-turn" key={index}>
           <article className="message user-message">
             <h2>You</h2><p>{result.transcript}</p>
@@ -115,14 +117,14 @@ export function HomePage() {
         </div>}
         <div ref={transcriptEnd} className="conversation-thread-end" />
       </section>
-      <section className="conversation-composer conversation-composer--pinned" aria-label="Record a message">
+      <section className={`conversation-composer ${activeConversation ? 'conversation-composer--pinned' : ''}`} aria-label="Record a message">
         <p className={`recording-status ${phase === 'recording' ? 'is-recording' : ''}`} role="status" aria-live="polite">
           <span aria-hidden="true" />{status}
         </p>
         {error && <p className="error-message" role="alert">{error}</p>}
         <div className="composer-actions">
-          {phase === 'idle' && <button className="primary-button" onClick={() => void start()}>
-            {turns.length ? 'Record a reply' : 'Start speaking'}
+          {phase === 'idle' && <button className="primary-button" disabled={starting} onClick={() => void start()}>
+            {turns.length || opening ? 'Record a reply' : 'Or start speaking yourself'}
           </button>}
           {phase === 'recording' && <button className="primary-button" onClick={() => void finish()}>Stop & send</button>}
           {phase === 'sending' && <button className="primary-button" disabled>Preparing reply…</button>}

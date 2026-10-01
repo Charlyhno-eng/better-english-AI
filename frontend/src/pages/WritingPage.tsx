@@ -3,9 +3,15 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { CorrectionDisclosure } from '../features/writing/CorrectionDisclosure';
 import { sendWritingMessage, type WritingMessage, type WritingTurn } from '../features/writing/api';
 
+import { ConversationStarter, OpeningMessage } from '../features/conversation/ConversationStarter';
+import { conversationHistory, type ConversationOpening } from '../features/conversation/start';
+
 interface ChatTurn extends WritingTurn { text: string; }
 
 export function WritingPage() {
+  const [opening, setOpening] = useState<ConversationOpening | null>(null);
+  const [starting, setStarting] = useState(false);
+  const [session, setSession] = useState(0);
   const [text, setText] = useState('');
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [pendingText, setPendingText] = useState('');
@@ -22,17 +28,17 @@ export function WritingPage() {
     setBusy(false); setPendingText('');
   }
   function reset() {
-    cancel(); setTurns([]); setText(''); setError('');
+    cancel(); setTurns([]); setText(''); setError(''); setOpening(null); setStarting(false); setSession(value => value + 1);
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (request.current || !text.trim()) return;
+    if (request.current || starting || !text.trim()) return;
     const controller = new AbortController();
     const submitted = text.trim();
-    const history: WritingMessage[] = turns.flatMap((turn) => [
+    const history: WritingMessage[] = conversationHistory(opening, turns.flatMap((turn) => [
       { role: 'user' as const, content: turn.text },
       { role: 'assistant' as const, content: turn.reply },
-    ]);
+    ]), 25);
     request.current = controller;
     setBusy(true); setError(''); setPendingText(submitted);
     try {
@@ -58,9 +64,9 @@ export function WritingPage() {
     <section className="conversation-thread" aria-label="Written conversation">
       <div className="thread-toolbar"><span className="thread-label">Your writing partner</span>
         <button type="button" className="secondary-button" onClick={reset}>New conversation</button></div>
-      {turns.length === 0 && !busy && <div className="welcome-message">
-        <div><h2>What would you like to talk about?</h2><p>Tell me about your day, share an idea, or ask a question. We’ll practise your English as we chat.</p></div>
-      </div>}
+      {!turns.length && !opening && !busy && <ConversationStarter key={session} mode="writing"
+        disabled={busy} onStarted={setOpening} onBusy={setStarting} />}
+      {opening && <OpeningMessage opening={opening} paused={busy} />}
       <div role="log" aria-label="Writing messages" aria-live="polite">
         {turns.map((turn, index) => <div className="conversation-turn" key={index}>
           <article className="message user-message"><h2>You</h2><p>{turn.text}</p></article>
@@ -81,11 +87,11 @@ export function WritingPage() {
     </section>
     <form className="writing-form writing-composer" onSubmit={(event) => void submit(event)}>
       <label htmlFor="learner-writing">Your message</label>
-      <textarea id="learner-writing" value={text} disabled={busy} rows={3} maxLength={10000}
+      <textarea id="learner-writing" value={text} disabled={busy || starting} rows={3} maxLength={10000}
         placeholder="Write your next message in English…"
         onChange={(event) => { setText(event.target.value); setError(''); }} />
       <p className="composer-hint">{text.length} / 10,000 characters. The latest 25 messages provide conversation context. This chat stays in memory until you leave the page.</p>
-      <div className="composer-actions"><button className="primary-button" disabled={busy || !text.trim()}>
+      <div className="composer-actions"><button className="primary-button" disabled={busy || starting || !text.trim()}>
         Send message</button>
         {busy && <button type="button" className="secondary-button" onClick={cancel}>Cancel</button>}</div>
       {error && <p className="error-message" role="alert">{error}</p>}
