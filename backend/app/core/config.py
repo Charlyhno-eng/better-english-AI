@@ -28,6 +28,7 @@ class AudioSettings(BaseModel):
     # Local providers must never silently select a GPU.
     device: Literal["cpu"] = "cpu"
     models_directory: Path = Path("data/models")
+    preload_models: bool = True
 
 
 class ParakeetSettings(BaseModel):

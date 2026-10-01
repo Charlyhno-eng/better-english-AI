@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -56,10 +58,25 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(application: FastAPI):
+        async def prepare_speech():
+            if not settings.audio.preload_models:
+                return
+            # Load installed resources before the learner's first turn, in the
+            # background so missing resources never prevent Setup from opening.
+            for resource in (provider, tts_provider):
+                warmup = getattr(resource, "warmup", None)
+                if warmup is not None:
+                    try:
+                        await warmup()
+                    except Exception as exc:
+                        logging.getLogger(__name__).warning("Speech warmup failed (%s)", type(exc).__name__)
+
+        preparation = asyncio.create_task(prepare_speech())
         try:
             yield
         finally:
             try:
+                await preparation
                 await application.state.setup_service.close()
                 await application.state.conversation_service.close()
             finally:

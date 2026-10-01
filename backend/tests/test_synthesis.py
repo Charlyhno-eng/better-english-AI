@@ -116,7 +116,8 @@ def test_provider_reuses_model_and_voice_on_cpu(runtime) -> None:
 
     asyncio.run(run())
     loader.assert_called_once()
-    torch.set_num_threads.assert_called_once_with(1)
+    assert all(call.args == (1,) for call in torch.set_num_threads.call_args_list)
+    assert torch.set_num_threads.call_count == 3  # load and both inferences
     model.to.assert_called_once_with("cpu")
     model.get_state_for_audio_prompt.assert_called_once_with(voice)
     assert model.generate_audio.call_args.kwargs == {"copy_state": True}
@@ -176,3 +177,86 @@ def test_application_releases_tts_model(monkeypatch, tmp_path) -> None:
         assert client.post("/api/audio/speech", json={"text": "Hello"}).status_code == 200
         assert client.post("/api/audio/speech", json={"text": "Too long"}).status_code == 400
     provider.close.assert_awaited_once()
+
+
+def test_stream_yields_before_generation_finishes_and_reuses_voice(runtime):
+    provider, model, loader, _, _ = runtime
+    release = threading.Event()
+    samples = model.generate_audio.return_value
+
+    def generate(*args, **kwargs):
+        assert kwargs['copy_state'] is True
+        yield samples
+        assert release.wait(2)
+        yield samples
+
+    model.generate_audio_stream.side_effect = generate
+
+    async def run():
+        await provider.warmup()
+        stream = provider.stream('Hello!')
+        first = await asyncio.wait_for(anext(stream), 1)
+        with wave.open(io.BytesIO(first.content), 'rb') as wav:
+            assert wav.getnframes() == 100
+        release.set()
+        remaining = [chunk async for chunk in stream]
+        assert len(remaining) == 1
+        await provider.close()
+
+    asyncio.run(run())
+    loader.assert_called_once()
+    model.get_state_for_audio_prompt.assert_called_once()
+    model.generate_audio.assert_not_called()
+
+
+def test_stream_cancellation_signals_upstream_and_releases_lock(runtime):
+    provider, model, _, _, _ = runtime
+    stopped = threading.Event()
+    samples = model.generate_audio.return_value
+
+    def generate(*args, stop, **kwargs):
+        yield samples
+        assert stop.wait(2)
+        stopped.set()
+
+    model.generate_audio_stream.side_effect = generate
+
+    async def run():
+        stream = provider.stream('Hello!')
+        await anext(stream)
+        await asyncio.wait_for(stream.aclose(), 1)
+        assert stopped.is_set()
+        assert not provider._lock.locked()
+        # A following request can still use the cached model.
+        assert await provider.synthesize('Hello!')
+        await provider.close()
+
+    asyncio.run(run())
+
+
+def test_stream_errors_are_safe_and_release_worker(runtime):
+    provider, model, _, _, _ = runtime
+    model.generate_audio_stream.side_effect = RuntimeError('private-provider-details')
+
+    async def run():
+        with pytest.raises(ProviderUnavailableError, match='could not synthesize') as error:
+            async for _ in provider.stream('Hello!'):
+                pytest.fail('Generation failed before producing audio')
+        assert 'private-provider-details' not in str(error.value)
+        assert not provider._lock.locked()
+        await provider.close()
+
+    asyncio.run(run())
+
+
+def test_service_stream_fallback_and_validation():
+    provider = SimpleNamespace(synthesize=AsyncMock(return_value=AudioData(b'wav', 'audio/wav')))
+    service = SynthesisService(provider, max_text_characters=10)
+
+    async def run():
+        assert [chunk async for chunk in service.stream(' Hello! ')] == [AudioData(b'wav', 'audio/wav')]
+        with pytest.raises(InvalidTextError):
+            await anext(service.stream(' '))
+
+    asyncio.run(run())
+    provider.synthesize.assert_awaited_once_with('Hello!')

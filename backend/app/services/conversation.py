@@ -1,7 +1,10 @@
 """One stateless voice turn, with best-effort secondary pronunciation analysis."""
 import asyncio
 import logging
-from collections.abc import Sequence
+import io
+import wave
+from collections.abc import AsyncIterator, Sequence
+from contextlib import aclosing
 from dataclasses import dataclass, replace
 
 from app.ai.contracts import Message
@@ -53,15 +56,8 @@ class ConversationService:
         self, audio: AudioData, *, history: Sequence[Message] = (),
         reference_text: str | None = None, analyze_pronunciation: bool = True,
     ) -> ConversationTurn:
-        if reference_text is not None:
-            reference_text = reference_text.strip()
-            if not reference_text or len(reference_text) > self._max_reference_characters:
-                raise InvalidTextError("The reference text is empty or exceeds the length limit.")
-        if any(message.role not in {"user", "assistant"} or not message.content.strip() for message in history):
-            raise InvalidTextError("History must contain nonempty user or assistant messages.")
-        transcript = (await self._transcription.transcribe(audio)).strip()
-        if not transcript:
-            raise InvalidAudioError("No speech was recognized in the recording.")
+        reference_text = self._validate(history, reference_text)
+        transcript = await self._transcribe(audio)
         warnings: list[ConversationWarning] = []
         assessment = None
         if analyze_pronunciation and self._pronunciation_enabled:
@@ -89,6 +85,83 @@ class ConversationService:
             warnings.append(ConversationWarning("speech_unavailable", "The reply audio is unavailable."))
         return ConversationTurn(transcript, reply, spoken, assessment, tuple(warnings),
                                 turn.corrections, turn.pronunciation_feedback)
+
+    async def stream(
+        self, audio: AudioData, *, history: Sequence[Message] = (),
+        reference_text: str | None = None, analyze_pronunciation: bool = True,
+    ) -> AsyncIterator[tuple[str, ConversationTurn | AudioData]]:
+        """Send reply and playable speech before optional pronunciation coaching."""
+        reference_text = self._validate(history, reference_text)
+        transcript = await self._transcribe(audio)
+        turn = await self._english.converse_turn(transcript, history=history)
+        warnings = []
+        if turn.corrections is None:
+            warnings.append(ConversationWarning("corrections_unavailable", "English corrections are unavailable."))
+        result = ConversationTurn(transcript, turn.reply, None, None, tuple(warnings), turn.corrections, None)
+        yield "reply", result
+        frames = bytearray()
+        sample_rate = None
+        spoken = None
+        try:
+            async with aclosing(self._synthesis.stream(turn.reply)) as chunks:
+                async for chunk in chunks:
+                    # Keep one complete WAV for replay, never concatenate WAV headers.
+                    with wave.open(io.BytesIO(chunk.content), "rb") as wav:
+                        rate = wav.getframerate()
+                        if wav.getnchannels() != 1 or wav.getsampwidth() != 2 or (sample_rate and rate != sample_rate):
+                            raise ValueError("Invalid speech chunk format")
+                        sample_rate = rate
+                        frames.extend(wav.readframes(wav.getnframes()))
+                    yield "audio", chunk
+            if not frames:
+                raise ValueError("No speech audio")
+            output = io.BytesIO()
+            with wave.open(output, "wb") as wav:
+                wav.setnchannels(1)
+                wav.setsampwidth(2)
+                wav.setframerate(sample_rate)
+                wav.writeframes(frames)
+            spoken = AudioData(output.getvalue(), "audio/wav")
+        except Exception as exc:
+            logger.warning("Conversation streaming synthesis failed (%s)", type(exc).__name__)
+            warnings.append(ConversationWarning("speech_unavailable", "The reply audio is unavailable."))
+        # Explicitly signal the end of speech before doing any optional CPU work.
+        yield "feedback", replace(result, audio=spoken, warnings=tuple(warnings))
+        assessment = None
+        feedback = None
+        if analyze_pronunciation and self._pronunciation_enabled:
+            deadline = asyncio.get_running_loop().time() + self._pronunciation_timeout
+            assessment = await self._analyze(audio, reference_text, transcript, warnings)
+            if assessment is not None:
+                try:
+                    remaining = deadline - asyncio.get_running_loop().time()
+                    if remaining <= 0:
+                        raise TimeoutError
+                    feedback = await asyncio.wait_for(
+                        self._english.pronunciation_feedback(assessment), remaining,
+                    )
+                except Exception as exc:
+                    logger.warning("Conversation coaching failed (%s)", type(exc).__name__)
+                    warnings.append(ConversationWarning(
+                        "pronunciation_feedback_unavailable", "Natural pronunciation feedback is unavailable.",
+                    ))
+        yield "done", replace(result, audio=spoken, pronunciation=assessment,
+                              pronunciation_feedback=feedback, warnings=tuple(warnings))
+
+    def _validate(self, history: Sequence[Message], reference_text: str | None) -> str | None:
+        if reference_text is not None:
+            reference_text = reference_text.strip()
+            if not reference_text or len(reference_text) > self._max_reference_characters:
+                raise InvalidTextError("The reference text is empty or exceeds the length limit.")
+        if any(message.role not in {"user", "assistant"} or not message.content.strip() for message in history):
+            raise InvalidTextError("History must contain nonempty user or assistant messages.")
+        return reference_text
+
+    async def _transcribe(self, audio: AudioData) -> str:
+        transcript = (await self._transcription.transcribe(audio)).strip()
+        if not transcript:
+            raise InvalidAudioError("No speech was recognized in the recording.")
+        return transcript
 
     async def _analyze(
         self, audio: AudioData, reference_text: str | None, transcript: str,

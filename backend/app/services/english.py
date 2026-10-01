@@ -43,7 +43,8 @@ _TURN_PROMPT = (
     'Choose one category for each correction. Use an empty items array and unchanged corrected_text '
     'when no corrections are needed. Label optional style suggestions as style. '
     'Review grammar, spelling, vocabulary and word choice without inventing mistakes. '
-    'Keep reply natural and suitable for speech synthesis; put teaching details in the separate fields. '
+    'Keep reply to one or two short sentences, at most 40 words, suitable for speech synthesis; '
+    'put teaching details in the separate fields and keep explanations brief. '
     'Set pronunciation_feedback to null unless a pronunciation_assessment is supplied. '
 )
 

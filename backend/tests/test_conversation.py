@@ -23,12 +23,18 @@ from test_transcription import recording
 
 @pytest.fixture
 def stages():
+    synthesis = SimpleNamespace(synthesize=AsyncMock(return_value=recording()))
+
+    async def stream(text):
+        yield await synthesis.synthesize(text)
+
+    synthesis.stream = stream
     return (
         SimpleNamespace(transcribe=AsyncMock(return_value=' Hello there! ')),
         SimpleNamespace(analyze=AsyncMock(return_value=PronunciationAssessment((), reference_text='Hello there!'))),
         SimpleNamespace(converse_turn=AsyncMock(return_value=EnglishTurn(
             'Hi! How are you?', Corrections(corrected_text='Hello there!', items=[]), 'Try linking the words.'))),
-        SimpleNamespace(synthesize=AsyncMock(return_value=recording())),
+        synthesis,
     )
 
 
@@ -353,3 +359,120 @@ def test_http_invalid_structured_reply_does_not_call_tts():
         assert result.json()['error']['code'] == 'provider_unavailable'
         assert 'provider-details' not in result.text
     tts.synthesize.assert_not_awaited()
+
+
+def test_stream_speech_precedes_optional_analysis_and_complete_wav_is_replayable(stages):
+    stages[2].pronunciation_feedback = AsyncMock(return_value='Try linking the words.')
+    first, second = recording(frames=100), recording(frames=200)
+
+    async def speech(text):
+        yield first
+        yield second
+
+    stages[3].stream = speech
+
+    async def run():
+        service = ConversationService(*stages)
+        stream = service.stream(recording())
+        kind, reply = await anext(stream)
+        assert kind == 'reply' and reply.reply and reply.audio is None
+        stages[1].analyze.assert_not_awaited()
+        assert await anext(stream) == ('audio', first)
+        assert await anext(stream) == ('audio', second)
+        stages[1].analyze.assert_not_awaited()
+        kind, spoken = await anext(stream)
+        assert kind == 'feedback'
+        import io
+        import wave
+        with wave.open(io.BytesIO(spoken.audio.content), 'rb') as wav:
+            assert wav.getnframes() == 300
+        kind, result = await anext(stream)
+        assert kind == 'done' and result.pronunciation.reference_inferred
+        assert result.pronunciation_feedback == 'Try linking the words.'
+        assert result.audio == spoken.audio
+        stages[2].converse_turn.assert_awaited_once_with('Hello there!', history=())
+        await stream.aclose()
+
+    asyncio.run(run())
+
+
+def test_stream_analysis_and_coaching_timeouts_keep_spoken_reply(stages):
+    async def stalled(*args):
+        await asyncio.sleep(.1)
+        return 'Late feedback'
+
+    stages[2].pronunciation_feedback = AsyncMock(side_effect=stalled)
+
+    async def run():
+        service = ConversationService(*stages, pronunciation_timeout_seconds=.01)
+        events = [event async for event in service.stream(recording())]
+        assert [kind for kind, _ in events] == ['reply', 'audio', 'feedback', 'done']
+        final = events[-1][1]
+        assert final.audio and final.pronunciation
+        assert final.warnings[0].code == 'pronunciation_feedback_unavailable'
+        stages[1].analyze.side_effect = stalled
+        final = [event async for event in service.stream(recording())][-1][1]
+        assert final.audio and final.pronunciation is None
+        assert final.warnings[0].code == 'pronunciation_timeout'
+        await service.close()
+
+    asyncio.run(run())
+
+
+def test_stream_cancellation_closes_speech_without_starting_analysis(stages):
+    closed = False
+
+    async def speech(text):
+        nonlocal closed
+        try:
+            yield recording()
+            await asyncio.Event().wait()
+        finally:
+            closed = True
+
+    stages[3].stream = speech
+
+    async def run():
+        stream = ConversationService(*stages).stream(recording())
+        await anext(stream)
+        await anext(stream)
+        await stream.aclose()
+        assert closed
+        stages[1].analyze.assert_not_awaited()
+
+    asyncio.run(run())
+
+
+def test_stream_http_events_and_essential_errors():
+    service, _, _, glm, _ = composed_service()
+    app = create_app(Settings(_env_file=None))
+    app.dependency_overrides[get_conversation_service] = lambda: service
+    payload = {'audio_base64': base64.b64encode(recording().content).decode(), 'analyze_pronunciation': False}
+    with TestClient(app) as client:
+        response = client.post('/api/conversation/turn/stream', json=payload)
+        assert response.status_code == 200
+        assert response.headers['content-type'] == 'application/x-ndjson'
+        assert response.headers['cache-control'] == 'no-store'
+        events = [json.loads(line) for line in response.text.splitlines()]
+        assert [event['type'] for event in events] == ['reply', 'audio', 'feedback', 'done']
+        assert base64.b64decode(events[1]['data']['content_base64']) == recording().content
+        assert events[-1]['data']['transcript'] == 'Hello'
+        assert events[-1]['data']['warnings'] == []
+        glm.complete.side_effect = ProviderUnavailableError('Safe failure')
+        response = client.post('/api/conversation/turn/stream', json=payload)
+        assert response.status_code == 503
+        assert response.json()['error']['message'] == 'Safe failure'
+
+
+def test_stream_speech_failure_keeps_reply(stages):
+    stages[3].synthesize.side_effect = RuntimeError('private-speech-detail')
+
+    async def run():
+        events = [event async for event in ConversationService(*stages).stream(recording(), analyze_pronunciation=False)]
+        assert [kind for kind, _ in events] == ['reply', 'feedback', 'done']
+        final = events[-1][1]
+        assert final.reply and final.audio is None
+        assert final.warnings[0].code == 'speech_unavailable'
+        assert 'private-speech-detail' not in str(final.warnings)
+
+    asyncio.run(run())

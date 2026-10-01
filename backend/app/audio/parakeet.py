@@ -28,6 +28,14 @@ class ParakeetProvider:
     async def transcribe(self, audio: AudioData) -> str:
         return await asyncio.to_thread(self._transcribe, audio)
 
+    async def warmup(self) -> None:
+        if self._model_path.is_file():
+            await asyncio.to_thread(self._prepare)
+
+    def _prepare(self) -> None:
+        with self._lock:
+            self._load()
+
     def _load(self) -> None:
         if self._model is not None:
             return
@@ -60,6 +68,8 @@ class ParakeetProvider:
             self._load()
             try:
                 import torch
+
+                torch.set_num_threads(self._cpu_threads)
 
                 # bytearray owns writable memory; the float conversion owns its tensor.
                 waveform = torch.frombuffer(bytearray(pcm), dtype=torch.int16)

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 
-export function ReplyAudio({ blob, paused }: { blob: Blob; paused: boolean }) {
+export function ReplyAudio({ blob, paused, autoPlay = true, onPlayback }: {
+  blob: Blob; paused: boolean; autoPlay?: boolean; onPlayback?: () => void;
+}) {
   const player = useRef<HTMLAudioElement>(null);
   const [hint, setHint] = useState('');
 
@@ -8,14 +10,14 @@ export function ReplyAudio({ blob, paused }: { blob: Blob; paused: boolean }) {
     const audio = player.current!;
     const url = URL.createObjectURL(blob);
     audio.src = url;
-    void audio.play().catch(() => setHint('Press play to hear the reply.'));
+    if (autoPlay) void audio.play().catch(() => setHint('Press play to hear the reply.'));
     return () => {
       audio.pause();
       audio.removeAttribute('src');
       audio.load();
       URL.revokeObjectURL(url);
     };
-  }, [blob]);
+  }, [blob, autoPlay]);
 
   useEffect(() => {
     if (paused) player.current?.pause();
@@ -28,7 +30,7 @@ export function ReplyAudio({ blob, paused }: { blob: Blob; paused: boolean }) {
           if (paused) {
             player.current?.pause();
             setHint('Playback is paused while recording or sending a message.');
-          } else setHint('');
+          } else { onPlayback?.(); setHint(''); }
         }} onError={() => setHint('Audio playback failed. The text reply is still available.')} />
       {hint && <p className="audio-hint">{hint}</p>}
     </div>

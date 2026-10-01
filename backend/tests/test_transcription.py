@@ -92,7 +92,8 @@ def test_provider_loads_once_and_forces_cpu(model_runtime) -> None:
 
     asyncio.run(run())
     restore.assert_called_once_with(restore_path=str(path), map_location="cpu")
-    torch.set_num_threads.assert_called_once_with(2)
+    assert all(call.args == (2,) for call in torch.set_num_threads.call_args_list)
+    assert torch.set_num_threads.call_count == 3  # load and both inferences
     model.to.assert_called_once_with("cpu")
     model.freeze.assert_called_once()
     model.eval.assert_called_once()

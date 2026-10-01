@@ -1,7 +1,7 @@
 import { LanguageCorrections } from './LanguageCorrections';
 import type { VoiceTurn } from './api';
 
-export function TurnFeedback({ turn }: { turn: VoiceTurn }) {
+export function TurnFeedback({ turn, pronunciationPending = false }: { turn: VoiceTurn; pronunciationPending?: boolean }) {
   const { corrections, pronunciation, pronunciation_feedback: feedback } = turn;
   const count = corrections?.items.length ?? 0;
   return <details className="learning-feedback">
@@ -16,7 +16,7 @@ export function TurnFeedback({ turn }: { turn: VoiceTurn }) {
     </section>
     <section aria-label="OpenPronounce pronunciation observations">
       <h3>Pronunciation observations <span className="feedback-source">OpenPronounce</span></h3>
-      {!pronunciation ? <p>Pronunciation analysis is unavailable or was skipped for this turn.</p> : <>
+      {!pronunciation ? <p>{pronunciationPending ? 'Pronunciation analysis follows the voice reply.' : 'Pronunciation analysis is unavailable or was skipped for this turn.'}</p> : <>
         <p className="feedback-note">Approximate sound observations, not a definitive diagnosis.
           {pronunciation.reference_inferred && ' The reference comes from speech recognition, so your intended words may differ.'}</p>
         {pronunciation.errors.length === 0 ? <p>No pronunciation differences reported.</p> :
@@ -30,7 +30,7 @@ export function TurnFeedback({ turn }: { turn: VoiceTurn }) {
     </section>
     <section aria-label="GLM pronunciation coaching">
       <h3>Pronunciation coaching <span className="feedback-source">GLM</span></h3>
-      <p>{feedback ?? 'Pronunciation coaching is unavailable for this turn.'}</p>
+      <p>{feedback ?? (pronunciationPending ? 'Pronunciation coaching will appear after analysis.' : 'Pronunciation coaching is unavailable for this turn.')}</p>
     </section>
   </details>;
 }

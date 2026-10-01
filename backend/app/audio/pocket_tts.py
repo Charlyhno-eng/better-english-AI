@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import AsyncIterator
 import io
 import threading
 import wave
@@ -65,26 +66,97 @@ class PocketTTSProvider:
     async def synthesize(self, text: str) -> AudioData:
         return await asyncio.to_thread(self._synthesize, text)
 
+    async def warmup(self) -> None:
+        if self._config_path.is_file() and self._voice_path.is_file():
+            await asyncio.to_thread(self._prepare)
+
+    def _prepare(self) -> None:
+        with self._lock:
+            self._load()
+
+    async def stream(self, text: str) -> AsyncIterator[AudioData]:
+        """Bridge Pocket's CPU generator to the event loop with bounded buffering."""
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue[AudioData | Exception | None] = asyncio.Queue(maxsize=8)
+        stopped = threading.Event()
+
+        def publish(item: AudioData | Exception | None) -> bool:
+            future = asyncio.run_coroutine_threadsafe(queue.put(item), loop)
+            while not stopped.is_set():
+                try:
+                    future.result(timeout=.1)
+                    return True
+                except TimeoutError:
+                    continue
+            future.cancel()
+            return False
+
+        def generate() -> None:
+            try:
+                with self._lock:
+                    if stopped.is_set():
+                        return
+                    self._load()
+                    import torch
+
+                    torch.set_num_threads(self._cpu_threads)
+                    chunks = self._model.generate_audio_stream(self._voice_state, text, copy_state=True, stop=stopped)
+                    try:
+                        for samples in chunks:
+                            if not stopped.is_set():
+                                publish(self._encode(samples))
+                    finally:
+                        # Drain the upstream generator after cancellation so its
+                        # decoding thread joins before releasing the model lock.
+                        chunks.close()
+            except Exception:
+                publish(ProviderUnavailableError("Pocket TTS could not synthesize the text."))
+            finally:
+                if not stopped.is_set():
+                    publish(None)
+
+        worker = asyncio.create_task(asyncio.to_thread(generate))
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                if isinstance(item, Exception):
+                    raise item
+                yield item
+        finally:
+            stopped.set()
+            # Cancellation stops generation at the next chunk; the worker lock
+            # remains owned until then, just as with non-streaming inference.
+            await asyncio.shield(worker)
+
+    def _encode(self, samples: Any) -> AudioData:
+        import torch
+
+        samples = samples.detach().cpu().reshape(-1)
+        if samples.numel() == 0 or not torch.isfinite(samples).all():
+            raise ValueError("Pocket TTS returned invalid audio")
+        pcm = samples.clamp(-1, 1).mul(32767).to(torch.int16).numpy().astype("<i2").tobytes()
+        output = io.BytesIO()
+        with wave.open(output, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(self._model.sample_rate)
+            wav.writeframes(pcm)
+        return AudioData(output.getvalue(), "audio/wav")
+
     def _synthesize(self, text: str) -> AudioData:
         with self._lock:
             self._load()
             try:
                 import torch
 
+                torch.set_num_threads(self._cpu_threads)
+
                 # Pocket TTS manages inference across its own generation threads.
                 # An outer inference_mode creates tensors those threads cannot mutate.
                 samples = self._model.generate_audio(self._voice_state, text, copy_state=True)
-                samples = samples.detach().cpu().reshape(-1)
-                if samples.numel() == 0 or not torch.isfinite(samples).all():
-                    raise ValueError("Pocket TTS returned invalid audio")
-                pcm = samples.clamp(-1, 1).mul(32767).to(torch.int16).numpy().astype("<i2").tobytes()
-                output = io.BytesIO()
-                with wave.open(output, "wb") as wav:
-                    wav.setnchannels(1)
-                    wav.setsampwidth(2)
-                    wav.setframerate(self._model.sample_rate)
-                    wav.writeframes(pcm)
-                return AudioData(output.getvalue(), "audio/wav")
+                return self._encode(samples)
             except Exception as exc:
                 raise ProviderUnavailableError("Pocket TTS could not synthesize the text.") from exc
 

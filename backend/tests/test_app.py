@@ -117,3 +117,29 @@ def test_private_exception_details_are_not_logged(caplog):
     assert response.status_code == 500
     assert response.headers['cache-control'] == 'no-store'
     assert 'private-learner-text' not in caplog.text
+
+
+def test_speech_preloading_is_nonblocking_and_resources_are_closed():
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    async def run():
+        started, release = asyncio.Event(), asyncio.Event()
+
+        async def warmup():
+            started.set()
+            await release.wait()
+
+        stt = SimpleNamespace(warmup=warmup, close=AsyncMock())
+        tts = SimpleNamespace(warmup=AsyncMock(), close=AsyncMock())
+        app = create_app(Settings(_env_file=None, audio={'preload_models': True}), stt_provider=stt, tts_provider=tts)
+        async with app.router.lifespan_context(app):
+            await asyncio.wait_for(started.wait(), 1)
+            tts.warmup.assert_not_awaited()
+            release.set()
+        tts.warmup.assert_awaited_once()
+        stt.close.assert_awaited_once()
+        tts.close.assert_awaited_once()
+
+    asyncio.run(run())
