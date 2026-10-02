@@ -20,23 +20,6 @@ Parakeet and Pocket TTS do not necessarily need to be installed locally. Using t
 
 An existing project already integrates Parakeet TDT 0.6B v3, Pocket TTS, and GLM and should be inspected before implementing these integrations. Reuse relevant approaches and existing knowledge where appropriate instead of rebuilding them from scratch.
 
-Reference project: `/home/charly/Documents/Projets/1.OSEF/T.A.R.S./`
-
-## High-Level Architecture
-
-Project
-├── backend
-│   ├── API
-│   ├── AI / Speech
-│   └── Core
-│
-├── frontend
-│   ├── Pages
-│   ├── Components
-│   └── Features
-│
-└── shared
-
 ## Core Flow
 
 User speech is transcribed with Parakeet, analyzed for pronunciation with OpenPronounce, processed by GLM for conversation and corrections, and answered using Pocket TTS.
